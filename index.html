@@ -1,0 +1,749 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Compare traffic signal strategies in an interactive isometric intersection simulation.">
+<title>JunctionIQ · Traffic Signal Lab</title>
+<style>
+:root{color-scheme:dark;--bg:#070b16;--panel:rgba(17,26,44,.72);--panel-solid:#101a2c;--line:rgba(120,150,200,.16);--line-strong:rgba(120,160,220,.3);--text:#f4f7ff;--muted:#9aabc6;--lime:#5ff5c8;--blue:#78a6ff;--amber:#ffb86b;--red:#ff6b6b;--radius:18px;font-family:Inter,"Segoe UI",system-ui,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;color:var(--text);background:
+  radial-gradient(900px 500px at 85% -10%,rgba(95,245,200,.10),transparent 60%),
+  radial-gradient(800px 600px at -10% 10%,rgba(120,166,255,.12),transparent 60%),
+  radial-gradient(700px 500px at 50% 110%,rgba(255,184,107,.06),transparent 60%),var(--bg);min-height:100vh}
+body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;background-image:linear-gradient(rgba(120,150,200,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(120,150,200,.05) 1px,transparent 1px);background-size:32px 32px;mask-image:radial-gradient(ellipse at 50% 0,#000 20%,transparent 75%)}
+.shell{width:min(1380px,calc(100% - 56px));margin:auto;position:relative}
+.mono,.eyebrow,.metric span,.controls label,.direction,.tag,.time,.pill,.section-label,.timeline{font-family:"JetBrains Mono","IBM Plex Mono",ui-monospace,Consolas,monospace}
+header{position:sticky;top:0;z-index:20;backdrop-filter:blur(14px);background:rgba(7,11,22,.7);border-bottom:1px solid var(--line)}
+.top{height:62px;display:flex;align-items:center;justify-content:space-between}
+.brand{display:flex;align-items:center;gap:11px;font-weight:800;font-size:20px;letter-spacing:-.5px}
+.logo{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:linear-gradient(135deg,var(--lime),#3fb6ff);box-shadow:0 0 22px rgba(95,245,200,.35)}
+.logo svg{width:18px;height:18px}
+.top .mono{font-size:11px;color:var(--muted);letter-spacing:.08em}
+.live-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--lime);margin-right:8px;box-shadow:0 0 10px var(--lime);animation:pulse 2s infinite}
+@keyframes pulse{50%{opacity:.35}}
+p{color:var(--muted);line-height:1.55;margin:0}
+/* hero */
+.hero{position:relative;overflow:hidden;display:grid;grid-template-columns:1.05fr .95fr;align-items:center;gap:10px;margin:22px 0 16px;padding:30px 36px;border:1px solid var(--line-strong);border-radius:24px;background:linear-gradient(135deg,rgba(25,40,70,.85),rgba(10,18,34,.85));box-shadow:0 30px 80px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.06)}
+.hero:after{content:"";position:absolute;width:520px;height:520px;right:-120px;top:-160px;background:radial-gradient(circle,rgba(95,245,200,.16),transparent 65%);pointer-events:none}
+.eyebrow{font-size:11px;letter-spacing:.18em;color:var(--lime);text-transform:uppercase;display:flex;align-items:center}
+.hero h1{font-size:clamp(40px,5.4vw,74px);line-height:.98;letter-spacing:-.065em;margin:14px 0 16px;font-weight:850}
+.hero h1 em{font-style:normal;background:linear-gradient(90deg,var(--lime),#59c3ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{max-width:470px;color:#c0cde3;font-size:15px}
+.hero-stats{display:flex;gap:10px;margin-top:22px;flex-wrap:wrap}
+.hero-stats div{padding:9px 13px;border:1px solid var(--line-strong);border-radius:12px;background:rgba(10,18,34,.6)}
+.hero-stats strong{display:block;font-size:17px}.hero-stats span{font:10px ui-monospace,monospace;color:var(--muted);letter-spacing:.06em}
+.hero-iso{width:100%;max-width:520px;justify-self:end;filter:drop-shadow(0 30px 40px rgba(0,0,0,.5));position:relative;z-index:1}
+/* controls */
+.glass{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);backdrop-filter:blur(12px);box-shadow:0 14px 40px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.04)}
+.controls{display:flex;align-items:end;gap:12px;padding:15px 17px;flex-wrap:wrap}
+.controls label{display:grid;gap:6px;color:var(--muted);font-size:10px;letter-spacing:.08em;text-transform:uppercase}
+.grow{flex:1;min-width:180px}
+button,select,input{font:inherit;color:var(--text);background:rgba(28,42,66,.9);border:1px solid var(--line-strong);border-radius:10px;height:40px;padding:0 13px;font-size:13px;transition:border-color .15s,transform .1s,background .15s,box-shadow .15s}
+button{cursor:pointer;font-weight:700}
+button:hover:not(:disabled){border-color:var(--lime);box-shadow:0 0 0 3px rgba(95,245,200,.12)}
+button:active:not(:disabled){transform:translateY(1px)}
+button:disabled,select:disabled,input:disabled{opacity:.45;cursor:default}
+button:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--lime);outline-offset:3px}
+.primary{background:linear-gradient(135deg,var(--lime),#3cd6ff);border-color:transparent;color:#04211b;min-width:124px;box-shadow:0 8px 24px rgba(95,245,200,.25)}
+.primary:hover:not(:disabled){box-shadow:0 8px 30px rgba(95,245,200,.45)}
+.time{font-size:13px;color:var(--muted);margin-left:auto;white-space:nowrap;align-self:center;padding:9px 13px;border-radius:10px;background:rgba(5,10,20,.5);border:1px solid var(--line)}
+.time strong{color:var(--lime);font-size:15px}
+.timeline{display:flex;align-items:center;gap:10px;margin:12px 0;font-size:11px;color:var(--muted);padding:9px 14px}
+.timeline input{flex:1;min-width:55px;height:26px;padding:0;border:0;background:transparent;accent-color:var(--lime)}
+.timeline button{height:32px}
+.interventions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:0 0 18px;padding:12px 14px}
+.interventions div{flex:1;min-width:190px}.interventions strong{font-size:13px}.interventions p,#message{font-size:12px}
+.interventions button{height:34px}
+#surgeNS{border-color:rgba(120,166,255,.45)}#surgeEW{border-color:rgba(255,184,107,.45)}
+#message{margin:-6px 0 12px;color:var(--amber)}
+.section-label{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 10px;font-size:11px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase}
+.section-label strong{color:var(--text);font-weight:650}
+.section-label>span{display:flex;gap:7px;align-items:center;padding:5px 10px;border-radius:99px;border:1px solid var(--line);background:rgba(10,18,34,.6)}
+.section-label i{width:7px;height:7px;border-radius:50%;background:var(--lime);box-shadow:0 0 12px var(--lime)}
+/* cards */
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.card{--key:var(--lime);position:relative;border-radius:var(--radius);overflow:hidden;background:linear-gradient(180deg,rgba(22,34,58,.9),rgba(12,20,36,.92));border:1px solid var(--line);box-shadow:0 18px 50px rgba(0,0,0,.4);transition:transform .25s,box-shadow .25s,border-color .25s}
+.card:before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:linear-gradient(90deg,transparent,var(--key),transparent)}
+.card:hover{transform:translateY(-3px)}
+.card.timer{--key:var(--blue)}.card.queue{--key:var(--amber)}
+.card.leader{border-color:var(--key);box-shadow:0 0 0 1px var(--key),0 20px 60px color-mix(in srgb,var(--key) 28%,transparent)}
+.card-head{padding:15px 16px 6px;display:flex;align-items:center;justify-content:space-between;gap:6px}
+.card h2,.analysis h2{font-size:17px;letter-spacing:-.3px;margin:0}
+.card h2{display:flex;align-items:center;gap:9px}
+.card h2:before{content:"";width:9px;height:9px;border-radius:3px;background:var(--key);box-shadow:0 0 12px var(--key)}
+.tag{font-size:9px;white-space:nowrap;letter-spacing:.07em;padding:5px 8px;border-radius:99px;color:var(--key);background:color-mix(in srgb,var(--key) 14%,transparent);border:1px solid color-mix(in srgb,var(--key) 30%,transparent)}
+.crown{display:none;font:700 9px ui-monospace,monospace;letter-spacing:.08em;padding:5px 8px;border-radius:99px;background:var(--key);color:#06131c}
+.leader .crown{display:inline-block}.leader .tag{display:none}
+.map{position:relative;margin:0 8px;border-radius:14px;background:radial-gradient(ellipse at 50% 55%,rgba(60,100,150,.25),transparent 70%)}
+canvas{display:block;width:100%;height:auto}
+.direction{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 14px 10px;font-size:11px;color:var(--muted);min-height:34px}
+.phase{display:inline-flex;align-items:center;gap:7px;padding:4px 9px;border-radius:99px;color:var(--lime);background:rgba(95,245,200,.1);border:1px solid rgba(95,245,200,.25)}
+.phase:before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor}
+.phase.clear{color:var(--amber);background:rgba(255,184,107,.1);border-color:rgba(255,184,107,.3);animation:pulse .6s infinite}
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--line);background:rgba(5,10,20,.35)}
+.metric{padding:12px 6px;text-align:center}.metric+.metric{border-left:1px solid var(--line)}
+.metric strong{display:block;font-size:24px;line-height:1.1;font-variant-numeric:tabular-nums;letter-spacing:-.5px}
+.metric:first-child strong{color:var(--key)}
+.metric span{font-size:9px;color:var(--muted);letter-spacing:.05em}
+/* analysis */
+.analysis{margin:18px 0;padding:20px}
+.analysisHead{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.analysisHead p,.evidence p{font-size:13px;margin-top:5px}
+.chart{margin-top:12px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:10px}
+.legend span:before{content:"";display:inline-block;width:14px;height:3px;border-radius:2px;background:var(--key);margin-right:7px;vertical-align:middle;box-shadow:0 0 8px var(--key)}
+.bench-controls{display:flex;gap:7px;align-items:center}.bench-controls button,.bench-controls select{height:34px}
+.lower{display:grid;grid-template-columns:1.1fr .9fr;gap:16px}.lower .analysis{margin:0}.lower p{font-size:13px;margin-top:8px}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.pill{font-size:11px;border:1px solid var(--line-strong);border-radius:8px;padding:6px 9px;color:var(--muted);background:rgba(10,18,34,.6)}
+.pill strong{color:var(--text)}
+.qbars{display:grid;gap:9px;margin-top:14px}
+.qbars small{font:10px ui-monospace,monospace;color:var(--muted);letter-spacing:.05em}
+.qbar{display:grid;grid-template-columns:62px 1fr 64px;align-items:center;gap:10px;font-size:12px}
+.qbar .track{height:12px;border-radius:99px;background:rgba(255,255,255,.05);overflow:hidden}
+.qbar .fill{height:100%;border-radius:99px;background:#51627d;transition:width .3s}
+.qbar.win .fill{background:linear-gradient(90deg,var(--lime),#3cd6ff);box-shadow:0 0 12px rgba(95,245,200,.5)}
+.qbar.win b{color:var(--lime)}
+.qbar span:last-child{font:12px ui-monospace,monospace;text-align:right}
+summary{cursor:pointer;font-weight:750;font-size:16px}details p{margin:8px 0}
+.scroll{overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px;text-align:left}
+td,th{padding:9px 10px;border-bottom:1px solid var(--line);white-space:nowrap}th{color:var(--muted);font-weight:500}
+tbody tr:hover{background:rgba(95,245,200,.04)}
+#log button{height:28px;padding:0 9px;color:var(--lime);background:rgba(95,245,200,.1);border-color:rgba(95,245,200,.3)}
+#log>p{margin-top:9px;font-size:13px}
+#switches{height:auto;accent-color:var(--lime)}
+.evidence table tbody tr:first-child th{color:var(--lime)}
+footer{color:var(--muted);font-size:11px;padding:22px 0 32px}
+.hdr-actions{display:flex;gap:8px;align-items:center}.hdr-actions button{height:34px;font-size:12px;padding:0 11px}
+.kbd{font:10px ui-monospace,monospace;color:var(--muted);margin-left:auto}
+.board{display:grid;gap:8px;padding:13px 16px;margin:0 0 14px}
+.board-head{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--muted)}.board-head strong{color:var(--text);font-size:13px}
+.board-row{display:grid;grid-template-columns:28px 130px 1fr 84px;align-items:center;gap:10px;font-size:13px}
+.board-row .rank{font:700 12px ui-monospace,monospace;color:var(--muted)}.board-row b{color:var(--key)}
+.board-row:nth-child(2) .rank{color:var(--key)}
+.board-track{height:10px;border-radius:99px;background:rgba(127,150,190,.14);overflow:hidden}
+.board-fill{height:100%;border-radius:99px;background:var(--key);box-shadow:0 0 10px var(--key)}
+.board-row strong{text-align:right;font:700 14px ui-monospace,monospace}
+.track-wrap{position:relative;flex:1;display:flex;align-items:center}.track-wrap input{width:100%}
+#ticks{position:absolute;inset:0;pointer-events:none}
+.tick{position:absolute;top:3px;width:3px;height:20px;border-radius:2px;transform:translateX(-1px);opacity:.95}
+.tick span{position:absolute;bottom:22px;left:50%;transform:translateX(-50%);font:700 9px ui-monospace,monospace;white-space:nowrap;padding:2px 6px;border-radius:5px;color:#06131c}
+.tick.NS,.tick.NS span{background:var(--blue)}.tick.EW,.tick.EW span{background:var(--amber)}
+.timeline{padding-top:22px}
+.card.flash{animation:flash .6s 4}
+@keyframes flash{50%{box-shadow:0 0 0 2px var(--key),0 0 45px var(--key)}}
+body.present .hero,body.present #howPanel,body.present footer{display:none}
+body.present .lower{grid-template-columns:1fr}
+body.present .shell{width:calc(100% - 24px)}
+body.present .metric strong{font-size:30px}body.present .card h2{font-size:20px}
+body.present .controls{margin-top:14px}
+body.day{--bg:#eef2f8;--panel:rgba(255,255,255,.85);--line:rgba(30,50,90,.12);--line-strong:rgba(30,60,110,.22);--text:#101a2e;--muted:#56667f;--lime:#0fae86;--blue:#3d6be0;--amber:#d9822b;background:radial-gradient(900px 500px at 85% -10%,rgba(15,174,134,.12),transparent 60%),radial-gradient(800px 600px at -10% 10%,rgba(61,107,224,.12),transparent 60%),#eef2f8}
+body.day:before{opacity:.7}
+body.day header{background:rgba(255,255,255,.78)}
+body.day .hero{background:linear-gradient(135deg,#ffffff,#e2eaf6);box-shadow:0 30px 80px rgba(30,50,90,.14)}
+body.day .hero p{color:#3e4d66}
+body.day .hero-stats div,body.day .time,body.day .pill,body.day .section-label>span{background:rgba(255,255,255,.85)}
+body.day button,body.day select,body.day input{background:#fff;color:var(--text)}
+body.day .primary{background:linear-gradient(135deg,#19c99b,#2bb3e6);color:#fff}
+body.day .card{background:linear-gradient(180deg,#ffffff,#f2f5fb);box-shadow:0 18px 50px rgba(30,50,90,.12)}
+body.day .metrics{background:rgba(236,241,248,.9)}
+body.day .glass{box-shadow:0 14px 40px rgba(30,50,90,.08)}
+body.day .crown{color:#fff}
+body.day .map{background:radial-gradient(ellipse at 50% 55%,rgba(120,160,210,.28),transparent 70%)}
+body.day .qbar:not(.win) .fill{background:#b4c0d3}
+body.day .tick span{color:#fff}
+@media(max-width:640px){.board-row{grid-template-columns:24px 92px 1fr 62px;font-size:12px}.hdr-actions .mono{display:none}}
+@media(max-width:980px){.hero{grid-template-columns:1fr}.hero-iso{justify-self:center;max-width:440px;margin-top:-6px}}
+@media(max-width:850px){.shell{width:calc(100% - 28px)}.grid{gap:10px}.card-head{padding:11px 10px 4px;flex-wrap:wrap}.card h2{font-size:14px}.map{margin:0 4px}.direction{padding:8px;flex-wrap:wrap}.metric span{font-size:8px}.metric strong{font-size:19px}.lower{grid-template-columns:1fr}}
+@media(max-width:640px){.hero{padding:22px 18px}.hero h1{font-size:clamp(36px,11vw,54px)}.grid{grid-template-columns:1fr}.card h2{font-size:17px}.metric strong{font-size:23px}.time{margin-left:0}.grow{flex-basis:100%}.controls{padding:12px}.top .mono{display:none}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style></head><body>
+<header><div class="shell top"><div class="brand"><span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#04211b" stroke-width="2.6" stroke-linecap="round"><path d="M12 3v18M3 12h18"/><circle cx="12" cy="12" r="3.2" fill="#04211b"/></svg></span>JunctionIQ</div><div class="hdr-actions"><span class="mono">INTRODUCTION TO AI · CCA 16</span><button id="themeBtn" title="Switch day / night theme">☀ Day</button><button id="presentBtn" title="Presentation mode (P)">⛶ Present</button></div></div></header>
+<main class="shell">
+<section class="hero">
+<div class="hero-copy"><div class="eyebrow"><span class="live-dot"></span>AI traffic control lab</div><h1>Smarter signals.<br><em>Shorter queues.</em></h1><p>Run the same traffic through three controllers and watch, second by second, when a learned signal reduces waiting.</p>
+<div class="hero-stats"><div><strong>3</strong><span>CONTROLLERS</span></div><div><strong>2,400</strong><span>TRAINING RUNS</span></div><div><strong>180 s</strong><span>PER SIMULATION</span></div></div></div>
+<canvas id="heroIso" class="hero-iso" width="520" height="350" aria-hidden="true"></canvas>
+</section>
+<section class="controls glass" aria-label="Simulation controls">
+<label class="grow">Traffic scenario<select id="scenario"><option value="rush">East–west rush</option><option value="balanced">Balanced flow</option><option value="surge">Sudden north–south surge</option></select></label>
+<label>Random seed<input id="seed" type="number" min="0" max="2147483647" value="42" style="width:96px"></label>
+<label>Playback<select id="speed"><option value="1">1×</option><option value="6" selected>6×</option><option value="15">15×</option><option value="30">30×</option></select></label>
+<button class="primary" id="run">▶ Start run</button><button id="reset">Reset</button><button id="finish" disabled>Skip to end</button>
+<div class="time"><strong id="clock">00:00</strong> / 03:00</div>
+</section>
+<div class="timeline glass"><label for="progress">TIMELINE</label><div class="track-wrap"><input id="progress" type="range" min="0" max="180" value="0" aria-label="Simulation timeline"><div id="ticks" aria-hidden="true"></div></div><button id="back" title="Back one second">−1 s</button><button id="step" title="Forward one second">+1 s</button></div>
+<section class="interventions glass" aria-label="Traffic interventions"><div><strong>Traffic injection</strong><p id="schedule">Add a 25-second surge at the current playback time.</p></div><button id="surgeNS">+ NS surge</button><button id="surgeEW">+ EW surge</button><button id="csv">Export run CSV</button></section>
+<p id="message" role="status" hidden></p>
+<section class="board glass" id="board" aria-live="polite"></section>
+<div class="section-label"><strong>Intersection comparison</strong><span><i aria-hidden="true"></i> <span id="status">Ready</span></span></div>
+<section class="grid" id="cards" aria-label="Live controller comparison"></section>
+<section class="analysis glass">
+<div class="analysisHead"><div><h2>Cumulative vehicle waiting time</h2><p id="insight" aria-live="polite">Start a run to compare the total time vehicles spend in queues.</p></div><div class="bench-controls"><select id="samples" aria-label="Number of benchmark runs"><option>10</option><option selected>20</option><option>50</option></select><button id="benchmark">Run benchmark</button></div></div>
+<div class="legend"><span style="--key:var(--lime)">Q-learning</span><span style="--key:var(--blue)">Fixed timer</span><span style="--key:var(--amber)">Longest queue</span></div>
+<canvas id="chart" class="chart" width="1120" height="220" role="img" aria-label="Line chart of cumulative waiting time for each controller"></canvas>
+<div class="scroll evidence" id="evidence" hidden aria-live="polite"></div>
+</section>
+<div class="lower">
+<section class="analysis glass"><h2>Inside the AI decision</h2><p id="decision">Start a run to see the learned values for holding or switching green.</p><div class="row" id="values"></div><div class="qbars" id="qbars"></div></section>
+<section class="analysis glass" id="howPanel"><details><summary>How the experiment works</summary>
+<p><strong>Fixed timer</strong> switches after 18 seconds of green. <strong>Longest queue</strong> switches when the other direction has a longer queue. <strong>Q-learning</strong> chooses hold or switch using the green direction, two queue sizes grouped into bins, and elapsed green time grouped into bins.</p>
+<p>Python trains the controller on 2,400 synthetic episodes when the server starts. Each second, the agent receives a reward of minus the number of waiting vehicles. It updates the value of its chosen action using the reward and the best estimated value of the next state. Evaluation uses a fixed policy on separate arrival streams.</p>
+<p>All controllers start north–south green and share a 6-second minimum green, a 30-second maximum green, and a 2-second all-red clearance. Each green approach can serve one vehicle per second. Total wait adds the queued vehicles each second, including vehicles still waiting when the run ends.</p>
+<p>This model assumes straight-through traffic, fixed discharge rates and an isolated junction. Results apply to this simulation.</p>
+</details></section>
+</div>
+<section class="analysis glass"><div class="analysisHead"><div><h2>AI decision log</h2><p>Select a timestamp to replay that decision.</p></div><label class="mono"><input id="switches" type="checkbox" checked> Switches only</label></div><div id="log" class="scroll"></div></section>
+<footer>Shortcuts: Space play/pause · ← → step one second · P presentation mode<br>JunctionIQ · Simulated four-way intersection · North–south (NS) and east–west (EW) · Vehicles drive on the left</footer>
+</main>
+<script>
+'use strict';
+const LENGTH = 180;
+const CONTROLLERS = [
+  {id:'ai', title:'Q-learning', tag:'REINFORCEMENT LEARNING', color:'#5ff5c8', day:'#0fae86'},
+  {id:'timer', title:'Fixed timer', tag:'18 s GREEN', color:'#78a6ff', day:'#3d6be0'},
+  {id:'queue', title:'Longest queue', tag:'ADAPTIVE RULE', color:'#ffb86b', day:'#d9822b'}
+];
+const $ = id => document.getElementById(id);
+const EMPTY = {queues:[0,0,0,0], phase:0, allRed:false, served:0};
+let isDay = false;
+try { isDay = localStorage.getItem('jiq-theme') === 'day'; } catch (e) {}
+const col = i => isDay ? CONTROLLERS[i].day : CONTROLLERS[i].color;
+const THEMES = {
+  night:{islandTop:'#26344c',islandL:'#121b2c',islandR:'#1a2539',grass:'#1b4639',grassL:'#14342b',grassR:'#183d33',road:'#151c2b',junction:'#192235',curb:'rgba(140,170,210,.25)',dash:'rgba(230, 200, 110, .75)',zebra:'rgba(225, 232, 245, .55)',lit:'rgba(255,214,140,.85)',unlit:'rgba(120,170,230,.18)',chipBg:'rgba(10,18,34,.85)',chipFg:'#c9d6ee',shadow:'rgba(0,0,0,.3)',b:[1.18,.62,.85],leaf:['#6fe0a0','#1f7a5a']},
+  day:{islandTop:'#e3e8ef',islandL:'#a7b2c2',islandR:'#c1cad6',grass:'#93d6a8',grassL:'#5e9c73',grassR:'#78b98c',road:'#4a5263',junction:'#555e71',curb:'rgba(255,255,255,.7)',dash:'rgba(255,214,90,.95)',zebra:'rgba(255,255,255,.88)',lit:'rgba(205,232,255,.95)',unlit:'rgba(80,120,175,.5)',chipBg:'rgba(255,255,255,.94)',chipFg:'#24324a',shadow:'rgba(30,40,60,.18)',b:[1.75,1.28,1.48],leaf:['#9af5bb','#2f9a68']}
+};
+const T = () => isDay ? THEMES.day : THEMES.night;
+
+function totals(state) {
+  const [n,e,s,w] = state.queues;
+  return [n+s,e+w];
+}
+
+function makeCards() {
+  $('cards').innerHTML = CONTROLLERS.map(c => `
+    <article class="card ${c.id}" id="card-${c.id}">
+      <div class="card-head"><h2>${c.title}</h2><span class="tag">${c.tag}</span><span class="crown">★ LOWEST WAIT</span></div>
+      <div class="map"><canvas id="map-${c.id}" width="520" height="350" role="img" aria-label="${c.title} isometric four-way intersection"></canvas></div>
+      <div class="direction"><span class="phase" id="phase-${c.id}">NS green</span><span id="queues-${c.id}">NS 0 · EW 0 queued</span></div>
+      <div class="metrics"><div class="metric"><strong id="wait-${c.id}">0</strong><span>WAIT · VEH-S</span></div>
+      <div class="metric"><strong id="peak-${c.id}">0</strong><span>PEAK LANE QUEUE</span></div>
+      <div class="metric"><strong id="served-${c.id}">0</strong><span>VEHICLES SERVED</span></div></div>
+    </article>`).join('');
+}
+
+/* ---------- Isometric renderer ---------- */
+const ISO = {W:520, H:350, TW:52, TH:26, Z:27, OX:260, OY:212, E:5.5};
+const P = (x,y,z=0) => [ISO.OX + (x-y)*ISO.TW/2, ISO.OY + (x+y)*ISO.TH/2 - z*ISO.Z];
+function shade(hex, f) {
+  const n = parseInt(hex.slice(1),16);
+  let r=n>>16, g=(n>>8)&255, b=n&255;
+  if (f <= 1) { r*=f; g*=f; b*=f; } else { const t=f-1; r+=(255-r)*t; g+=(255-g)*t; b+=(255-b)*t; }
+  return `rgb(${r|0},${g|0},${b|0})`;
+}
+function poly(ctx, pts, fill, stroke) {
+  ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]);
+  for (let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]);
+  ctx.closePath();
+  if (fill) { ctx.fillStyle=fill; ctx.fill(); }
+  if (stroke) { ctx.strokeStyle=stroke; ctx.lineWidth=1; ctx.stroke(); }
+}
+const flat = (ctx,x0,y0,x1,y1,z,fill) => poly(ctx,[P(x0,y0,z),P(x1,y0,z),P(x1,y1,z),P(x0,y1,z)],fill);
+function box(ctx,x0,y0,x1,y1,z0,z1,top,left,right) {
+  poly(ctx,[P(x0,y1,z0),P(x1,y1,z0),P(x1,y1,z1),P(x0,y1,z1)], left || shade(top,.58));
+  poly(ctx,[P(x1,y0,z0),P(x1,y1,z0),P(x1,y1,z1),P(x1,y0,z1)], right || shade(top,.78));
+  poly(ctx,[P(x0,y0,z1),P(x1,y0,z1),P(x1,y1,z1),P(x0,y1,z1)], top);
+}
+function chip(ctx, x, y, text, bg, fg) {
+  ctx.font = '700 10px ui-monospace,Consolas,monospace';
+  const w = ctx.measureText(text).width + 10;
+  ctx.fillStyle = bg; ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(x-w/2, y-8, w, 16, 8); else ctx.rect(x-w/2, y-8, w, 16);
+  ctx.fill(); ctx.fillStyle = fg; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(text, x, y+.5); ctx.textAlign='start'; ctx.textBaseline='alphabetic';
+}
+
+const BUILDINGS = [
+  [-5.1,-5.1,-3.5,-3.4,2.5,'#2c4266'],[-3.1,-5.1,-1.8,-3.9,1.6,'#3a3c6b'],[-5.1,-3.0,-3.9,-1.8,1.2,'#2b4b5e'],
+  [2.6,-5.1,3.9,-3.9,1.9,'#34466e'],[4.2,-5.1,5.1,-2.9,1.3,'#2d4f63'],
+  [-5.1,2.6,-3.9,3.9,1.5,'#3b4170'],[-5.1,4.2,-2.9,5.1,.9,'#2c4767'],
+  [3.0,3.0,4.0,4.0,.6,'#3a4a6e'],[4.3,2.0,5.1,3.4,.8,'#2e4c60']
+];
+const TREES = [[-2.2,-2.3],[-3.0,-2.0],[-2.0,-3.2],[2.1,-2.1],[2.9,-2.4],[2.0,-3.2],[3.6,-2.0],[2.2,-4.4],
+  [-2.1,2.1],[-2.4,2.9],[-3.2,2.0],[-2.0,3.8],[2.1,2.1],[2.8,2.0],[2.0,2.9],[2.3,4.4],[3.4,4.8],[4.6,4.6]];
+
+function building(ctx,[x0,y0,x1,y1,h,c],k) {
+  const t = T();
+  poly(ctx,[P(x0+.15,y0+.15,0),P(x1+.35,y0+.15,0),P(x1+.35,y1+.35,0),P(x0+.15,y1+.35,0)],t.shadow);
+  box(ctx,x0,y0,x1,y1,.05,h,shade(c,t.b[0]),shade(c,t.b[1]),shade(c,t.b[2]));
+  // windows on both visible faces
+  for (let z=.32, f=0; z<h-.18; z+=.38, f++) {
+    for (let u=x0+.18, j=0; u<x1-.22; u+=.34, j++) {
+      const lit = ((k*7+f*13+j*5)%9) < 3;
+      poly(ctx,[P(u,y1,z),P(u+.18,y1,z),P(u+.18,y1,z+.2),P(u,y1,z+.2)], lit ? t.lit : t.unlit);
+    }
+    for (let v=y0+.18, j=0; v<y1-.22; v+=.34, j++) {
+      const lit = ((k*11+f*7+j*3)%8) < 2;
+      poly(ctx,[P(x1,v,z),P(x1,v+.18,z),P(x1,v+.18,z+.2),P(x1,v,z+.2)], lit ? t.lit : t.unlit);
+    }
+  }
+  // rooftop unit
+  const mx=(x0+x1)/2, my=(y0+y1)/2;
+  box(ctx,mx-.22,my-.18,mx+.12,my+.16,h,h+.16,isDay?'#9aa8bd':'#5d6f8c');
+}
+function tree(ctx,x,y,k) {
+  const [sx,sy]=P(x,y,0);
+  ctx.fillStyle=T().shadow; ctx.beginPath(); ctx.ellipse(sx+4,sy+1,9,4.5,0,0,Math.PI*2); ctx.fill();
+  box(ctx,x-.04,y-.04,x+.04,y+.04,0,.32,'#6b4f3a');
+  const [cx,cy]=P(x,y,.62), r = 8.5 + (k%3);
+  const g=ctx.createRadialGradient(cx-3,cy-4,1,cx,cy,r);
+  g.addColorStop(0,T().leaf[0]); g.addColorStop(1,T().leaf[1]);
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
+}
+
+function drawStatic(ctx) {
+  const E = ISO.E, t = T();
+  // floating island
+  box(ctx,-E,-E,E,E,-.55,0,t.islandTop,t.islandL,t.islandR);
+  // lots (grass)
+  for (const [sx,sy] of [[-1,-1],[1,-1],[-1,1],[1,1]]) {
+    const a=1.35, b=E-.14;
+    const xs=[sx*a,sx*b].sort((m,n)=>m-n), ys=[sy*a,sy*b].sort((m,n)=>m-n);
+    box(ctx,xs[0],ys[0],xs[1],ys[1],0,.06,t.grass,t.grassL,t.grassR);
+  }
+  // roads
+  flat(ctx,-1,-E,1,E,.005,t.road); flat(ctx,-E,-1,E,1,.005,t.road);
+  flat(ctx,-1,-1,1,1,.006,t.junction);
+  ctx.strokeStyle=t.curb; ctx.lineWidth=1;
+  for (const [a,b] of [[[1,-E],[1,-1]],[[1,-1],[E,-1]],[[1,1],[E,1]],[[1,1],[1,E]],[[-1,1],[-1,E]],[[-1,1],[-E,1]],[[-1,-1],[-E,-1]],[[-1,-1],[-1,-E]]]) {
+    const p=P(a[0],a[1],.01), q=P(b[0],b[1],.01); ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.lineTo(q[0],q[1]); ctx.stroke();
+  }
+  // centre dashes
+  for (let t=1.75; t<E-.1; t+=.55) for (const s of [-1,1]) {
+    flat(ctx,-.025,s*t,.025,s*(t+.28),.01,t.dash);
+    flat(ctx,s*t,-.025,s*(t+.28),.025,.01,t.dash);
+  }
+  // zebra crossings
+  for (let k=-.92; k<.9; k+=.24) for (const s of [-1,1]) {
+    flat(ctx,k,s>0?1.1:-1.38,k+.13,s>0?1.38:-1.1,.012,t.zebra);
+    flat(ctx,s>0?1.1:-1.38,k,s>0?1.38:-1.1,k+.13,.012,t.zebra);
+  }
+  // objects sorted back to front
+  const objs = [];
+  BUILDINGS.forEach((b,k)=>objs.push({d:(b[0]+b[2])/2+(b[1]+b[3])/2, f:()=>building(ctx,b,k)}));
+  TREES.forEach(([x,y],k)=>objs.push({d:x+y, f:()=>tree(ctx,x,y,k)}));
+  objs.sort((a,b)=>a.d-b.d).forEach(o=>o.f());
+  // compass
+  const lab = [['N',0,-E-.45],['S',0,E+.45],['E',E+.45,0],['W',-E-.45,0]];
+  for (const [t,x,y] of lab) { const [sx,sy]=P(x,y,0); chip(ctx,sx,sy,t,T().chipBg,T().chipFg); }
+}
+const staticCache = {};
+function staticLayer(dpr) {
+  const key = (isDay?'d':'n')+dpr;
+  if (staticCache[key]) return staticCache[key];
+  const c = document.createElement('canvas'); c.width=ISO.W*dpr; c.height=ISO.H*dpr;
+  const ctx = c.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); drawStatic(ctx);
+  return staticCache[key] = c;
+}
+
+const CAR_COLORS = ['#e9eef6','#9fb2cb','#d76a6a','#5c6f8a','#f2d28a','#7fb7d9'];
+function car(ctx,cx,cy,axis,color) {
+  const L=.31, W=.19, [hx,hy] = axis==='x'?[L,W]:[W,L];
+  poly(ctx,[P(cx-hx+.07,cy-hy+.07,0),P(cx+hx+.07,cy-hy+.07,0),P(cx+hx+.07,cy+hy+.07,0),P(cx-hx+.07,cy+hy+.07,0)],'rgba(0,0,0,.4)');
+  box(ctx,cx-hx,cy-hy,cx+hx,cy+hy,.03,.16,color);
+  const [kx,ky] = axis==='x'?[L*.55,W*.82]:[W*.82,L*.55];
+  box(ctx,cx-kx,cy-ky,cx+kx,cy+ky,.16,.28,shade(color,1.12),'#1c2a40','#2a3d5a');
+}
+const LANES = [ // from N, E, S, W (left-hand traffic)
+  {axis:'y', pos:i=>[.5,-1.7-i*.68], dir:[0,1]},
+  {axis:'x', pos:i=>[1.7+i*.68,.5], dir:[-1,0]},
+  {axis:'y', pos:i=>[-.5,1.7+i*.68], dir:[0,-1]},
+  {axis:'x', pos:i=>[-1.7-i*.68,-.5], dir:[1,0]}
+];
+const STOPS = [[0,-1.52,1,-1.44],[1.44,0,1.52,1],[-1,1.44,0,1.52],[-1.52,-1,-1.44,0]];
+const POLES = [[1.25,-1.25,0],[1.25,1.25,1],[-1.25,1.25,0],[-1.25,-1.25,1]];
+const CAP = 6;
+
+function drawScene(canvas, cur, moving, color, now) {
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  if (canvas.width !== ISO.W*dpr) { canvas.width = ISO.W*dpr; canvas.height = ISO.H*dpr; }
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.drawImage(staticLayer(dpr),0,0,ISO.W,ISO.H);
+  const green = lane => !cur.allRed && cur.phase === lane % 2;
+  // stop bars glow
+  STOPS.forEach((s,lane) => {
+    ctx.save(); const g = green(lane);
+    ctx.shadowColor = g ? '#5ff5c8' : '#ff5d5d'; ctx.shadowBlur = 10;
+    flat(ctx,s[0],s[1],s[2],s[3],.02, g ? 'rgba(95,245,200,.95)' : 'rgba(255,93,93,.9)');
+    ctx.restore();
+  });
+  if (cur.allRed) {
+    const a = .35 + .3*Math.sin(now/120);
+    ctx.save(); ctx.shadowColor='#ffb86b'; ctx.shadowBlur=14; ctx.lineWidth=2;
+    poly(ctx,[P(-.95,-.95,.02),P(.95,-.95,.02),P(.95,.95,.02),P(-.95,.95,.02)],`rgba(255,184,107,${a*.25})`,`rgba(255,184,107,${a+.2})`);
+    ctx.restore();
+  }
+  const objs = [];
+  cur.queues.forEach((q,lane) => {
+    const L = LANES[lane];
+    for (let i=0;i<Math.min(q,CAP);i++) {
+      const [x,y] = L.pos(i);
+      const c = i%3===0 ? color : CAR_COLORS[(i*5+lane*3)%CAR_COLORS.length];
+      objs.push({d:x+y, f:()=>car(ctx,x,y,L.axis,c)});
+    }
+    if (q > CAP) {
+      const [x,y] = L.pos(CAP-.2);
+      objs.push({d:x+y+.01, f:()=>{const [sx,sy]=P(x,y,.55); chip(ctx,sx,sy,'+'+(q-CAP),'rgba(255,107,107,.92)','#fff');}});
+    }
+  });
+  moving.forEach(({lane,p}) => {
+    const L = LANES[lane], [x0,y0] = L.pos(0), dist = 4.6*p*(2-p);
+    const x = x0 + L.dir[0]*dist, y = y0 + L.dir[1]*dist;
+    objs.push({d:x+y, f:()=>car(ctx,x,y,L.axis,color)});
+  });
+  POLES.forEach(([x,y,ph],idx) => objs.push({d:x+y, f:()=>{
+    box(ctx,x-.035,y-.035,x+.035,y+.035,0,1.05,'#4a5a74');
+    box(ctx,x-.09,y-.09,x+.09,y+.09,.9,1.32,'#1a2233');
+    const on = !cur.allRed && cur.phase===ph;
+    const [rx,ry]=P(x+.09,y+.09,1.2), [gx,gy]=P(x+.09,y+.09,1.0);
+    ctx.save();
+    ctx.shadowBlur=14; ctx.shadowColor= on ? '#5ff5c8' : '#ff5d5d';
+    ctx.fillStyle = on ? '#3a1f24' : '#ff5d5d'; ctx.beginPath(); ctx.arc(rx-1,ry,3.3,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = on ? '#5ff5c8' : '#1d3a33'; ctx.beginPath(); ctx.arc(gx-1,gy,3.3,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }}));
+  objs.sort((a,b)=>a.d-b.d).forEach(o=>o.f());
+  // phase chip above junction
+  const [cx,cy] = P(0,0,1.75);
+  if (cur.allRed) chip(ctx,cx,cy,'ALL-RED','rgba(255,184,107,.95)','#2a1600');
+  else chip(ctx,cx,cy,(cur.phase===0?'NS':'EW')+' GREEN','rgba(95,245,200,.92)','#04211b');
+}
+
+function drawJunction(index, now) {
+  const c = CONTROLLERS[index], frames = history && history[index];
+  const cur = frames ? frames[frame] : EMPTY, prev = frames && frame > 0 ? frames[frame-1] : null;
+  const moving = [];
+  if (prev && timer !== null && !cur.allRed && cur.served > prev.served) {
+    const p = Math.min(1, (now - lastTick) / (1000 / Number($('speed').value)));
+    for (const lane of [cur.phase, cur.phase+2]) if (prev.queues[lane] > 0) moving.push({lane, p});
+  }
+  drawScene($('map-'+c.id), cur, moving, c.color, now);
+  if (index === 0 && timer === null && frames && cur.decision && cur.decision.second === frame) bubble($('map-'+c.id).getContext('2d'), cur.decision);
+}
+function bubble(ctx, d) {
+  const [x, y] = P(0,0,3.15);
+  const winHold = d.action === 0;
+  const head = 'AI DECISION · ' + d.second + ' s';
+  const a = 'Switch ' + d.switch.toFixed(1), b = 'Hold ' + d.hold.toFixed(1);
+  ctx.font = '700 12px ui-monospace,Consolas,monospace';
+  const w = Math.max(ctx.measureText(a + '   ' + b).width, ctx.measureText(head).width) + 26, h = 44;
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 16;
+  ctx.fillStyle = isDay ? 'rgba(255,255,255,.97)' : 'rgba(8,16,30,.95)';
+  ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x-w/2, y-h, w, h, 10); else ctx.rect(x-w/2, y-h, w, h);
+  ctx.moveTo(x-7, y); ctx.lineTo(x, y+8); ctx.lineTo(x+7, y); ctx.fill();
+  ctx.shadowBlur = 0; ctx.strokeStyle = col(0); ctx.lineWidth = 1.5;
+  ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x-w/2, y-h, w, h, 10); else ctx.rect(x-w/2, y-h, w, h); ctx.stroke();
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.font = '700 9px ui-monospace,Consolas,monospace'; ctx.fillStyle = isDay ? '#56667f' : '#9aabc6';
+  ctx.fillText(head, x-w/2+13, y-h+13);
+  ctx.font = '700 12px ui-monospace,Consolas,monospace';
+  const aw = ctx.measureText(a + '   ').width;
+  ctx.fillStyle = !winHold ? col(0) : (isDay ? '#7b879b' : '#6f7f99'); ctx.fillText(a, x-w/2+13, y-h+30);
+  ctx.fillStyle = winHold ? col(0) : (isDay ? '#7b879b' : '#6f7f99'); ctx.fillText(b, x-w/2+13+aw, y-h+30);
+  ctx.restore();
+}
+
+function drawHero(now) {
+  const cycle = 4200, t = now % cycle, n = Math.floor(now / cycle);
+  const phase = n % 2, allRed = t > cycle - 700;
+  const grow = Math.min(5, Math.floor(t / 650));
+  const queues = [0,1,2,3].map(l => (l%2===phase) ? Math.max(0, 3 - Math.floor(t/900)) : 1 + grow + (l>1?1:0));
+  const moving = allRed ? [] : [phase, phase+2].map(lane => ({lane, p:(t % 900)/900}));
+  drawScene($('heroIso'), {queues, phase, allRed}, moving, '#5ff5c8', now);
+}
+
+let lastDraw = 0;
+function loop(now) {
+  if (now - lastDraw > 30) {
+    lastDraw = now;
+    CONTROLLERS.forEach((_,i) => drawJunction(i, now));
+    drawHero(now);
+  }
+  requestAnimationFrame(loop);
+}
+
+/* ---------- Chart ---------- */
+function drawChart(frame) {
+  const c = $('chart'), dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = Math.max(300, Math.round(c.clientWidth)), h = 220;
+  if (c.width !== w*dpr || c.height !== h*dpr) { c.width = w*dpr; c.height = h*dpr; }
+  const ctx = c.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,w,h);
+  const left=52, right=w-70, top=14, bottom=186;
+  const largest = Math.max(20,...history.map(r => r[frame].wait));
+  const limit = Math.ceil(largest/20)*20;
+  ctx.font='11px ui-monospace,monospace'; ctx.fillStyle=isDay?'#5a6a84':'#8193b0'; ctx.lineWidth=1;
+  for (let i=0;i<=4;i++) {
+    const y=bottom-(bottom-top)*i/4;
+    ctx.strokeStyle=isDay?'rgba(30,50,90,.12)':'rgba(120,150,200,.12)'; ctx.setLineDash(i?[3,4]:[]);
+    ctx.beginPath(); ctx.moveTo(left,y); ctx.lineTo(right,y); ctx.stroke();
+    ctx.fillText(Math.round(limit*i/4).toLocaleString('en-IN'),4,y+4);
+  }
+  ctx.setLineDash([]);
+  for (const t of [0,60,120,180]) ctx.fillText(t+'s',left+(right-left)*t/LENGTH-8,207);
+  const X = t => left+(right-left)*t/LENGTH, Y = v => bottom-(bottom-top)*v/limit;
+  interventions.forEach(s => {
+    const c = s.direction === 'NS' ? (isDay?'#3d6be0':'#78a6ff') : (isDay?'#d9822b':'#ffb86b');
+    const x0 = X(s.at), x1 = X(Math.min(LENGTH, s.at + 25));
+    ctx.fillStyle = c + '1f'; ctx.fillRect(x0, top, x1 - x0, bottom - top);
+    ctx.strokeStyle = c; ctx.setLineDash([4,4]); ctx.beginPath(); ctx.moveTo(x0, top); ctx.lineTo(x0, bottom); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = c; ctx.font = '700 10px ui-monospace,monospace'; ctx.fillText(s.direction + ' surge', x0 + 5, bottom - 7);
+  });
+  ctx.font='11px ui-monospace,monospace';
+  history.forEach((frames,i) => {
+    const c = col(i);
+    ctx.beginPath();
+    for (let t=0;t<=frame;t++) { const x=X(t), y=Y(frames[t].wait); t?ctx.lineTo(x,y):ctx.moveTo(x,y); }
+    ctx.lineTo(X(frame),bottom); ctx.lineTo(X(0),bottom); ctx.closePath();
+    const g = ctx.createLinearGradient(0,top,0,bottom); g.addColorStop(0,c+'33'); g.addColorStop(1,c+'00');
+    ctx.fillStyle=g; ctx.fill();
+  });
+  history.forEach((frames,i) => {
+    const c = col(i);
+    ctx.save(); ctx.shadowColor=c; ctx.shadowBlur=8; ctx.lineWidth=2.4; ctx.strokeStyle=c; ctx.lineJoin='round';
+    ctx.beginPath();
+    for (let t=0;t<=frame;t++) { const x=X(t), y=Y(frames[t].wait); t?ctx.lineTo(x,y):ctx.moveTo(x,y); }
+    ctx.stroke();
+    const ex=X(frame), ey=Y(frames[frame].wait);
+    ctx.fillStyle=c; ctx.beginPath(); ctx.arc(ex,ey,4,0,Math.PI*2); ctx.fill(); ctx.restore();
+  });
+  // end labels without overlap
+  const ends = history.map((f,i)=>({i,y:Y(f[frame].wait),v:f[frame].wait})).sort((a,b)=>a.y-b.y);
+  for (let k=1;k<ends.length;k++) if (ends[k].y-ends[k-1].y<15) ends[k].y=ends[k-1].y+15;
+  ctx.font='700 11px ui-monospace,monospace';
+  ends.forEach(e => { ctx.fillStyle=col(e.i); ctx.fillText(e.v.toLocaleString('en-IN'),Math.min(X(frame)+9,right+8),e.y+4); });
+}
+
+let history = null, frame = 0, timer = null, interventions = [], busy = false, lastTick = 0, shownFrame = -1;
+const format = n => n.toLocaleString('en-IN');
+const seedValue = () => Math.max(0, Math.min(2147483647, Math.trunc(Number($('seed').value) || 0)));
+
+function render() {
+  if (frame !== shownFrame) { lastTick = performance.now(); shownFrame = frame; }
+  history.forEach((frames,i) => {
+    const id = CONTROLLERS[i].id, current = frames[frame];
+    const [ns, ew] = totals(current);
+    $('phase-'+id).textContent = current.allRed ? 'All-red clearance' : (current.phase===0?'NS':'EW')+' green';
+    $('phase-'+id).classList.toggle('clear',current.allRed);
+    $('queues-'+id).textContent = 'NS '+ns+' · EW '+ew+' queued';
+    $('wait-'+id).textContent = format(current.wait);
+    $('peak-'+id).textContent = current.peak;
+    $('served-'+id).textContent = current.served;
+  });
+  $('clock').textContent = String(Math.floor(frame/60)).padStart(2,'0')+':'+String(frame%60).padStart(2,'0');
+  $('progress').value = frame;
+  $('progress').style.background = '';
+  $('status').textContent = frame === LENGTH ? 'Complete' : timer !== null ? 'Running' : frame > 0 ? 'Paused' : 'Ready';
+  $('finish').disabled = frame === LENGTH || (frame === 0 && timer === null);
+  $('back').disabled = frame === 0;
+  $('step').disabled = frame === LENGTH;
+  $('surgeNS').disabled = $('surgeEW').disabled = frame === LENGTH || interventions.length >= 8;
+  $('schedule').textContent = interventions.length ? interventions.map(surge => surge.direction+' at '+surge.at+' s').join(' · ') : 'Add a 25-second surge at the current playback time.';
+  $('run').textContent = timer !== null ? 'Ⅱ Pause' : frame === LENGTH ? '↻ Replay' : frame > 0 ? '▶ Resume' : '▶ Start run';
+  const result = history.map(r => r[frame]);
+  const decision = result[0].decision;
+  $('decision').textContent = decision
+    ? 'At '+decision.second+' s, the agent chose to '+(decision.action?'switch the green.':'hold the green for '+(decision.phase===0?'NS.':'EW.'))+' A higher Q-value indicates a better estimated long-term reward.'
+    : 'Start a run to see the learned values for holding or switching green.';
+  $('values').innerHTML = decision
+    ? `<span class="pill">Queue NS / EW <strong>${decision.ns} / ${decision.ew}</strong></span><span class="pill">Green <strong>${decision.age}s</strong></span><span class="pill">Hold <strong>${decision.hold.toFixed(1)}</strong></span><span class="pill">Switch <strong>${decision.switch.toFixed(1)}</strong></span>` : '';
+  if (decision) {
+    const items = [['Hold', decision.hold, decision.action===0], ['Switch', decision.switch, decision.action===1]];
+    const worst = Math.max(...items.map(i => Math.abs(i[1])), 1);
+    $('qbars').innerHTML = '<small>PREDICTED FUTURE WAITING · SHORTER BAR WINS</small>' + items.map(([name,v,win]) =>
+      `<div class="qbar${win?' win':''}"><b>${name}</b><div class="track"><div class="fill" style="width:${(Math.abs(v)/worst*100).toFixed(1)}%"></div></div><span>${v.toFixed(1)}</span></div>`).join('');
+  } else $('qbars').innerHTML = '';
+  const best = Math.min(...result.map(r=>r.wait));
+  const order = CONTROLLERS.map((c,i)=>({c,i,w:result[i].wait})).sort((a,b)=>a.w-b.w || a.i-b.i);
+  const maxW = Math.max(1, ...order.map(o=>o.w));
+  $('board').innerHTML = `<div class="board-head"><strong>Live leaderboard</strong><span>${frame ? 'Lowest total wait leads · ' + $('clock').textContent : 'Start a run to see who leads'}</span></div>` +
+    order.map((o,k)=>`<div class="board-row" style="--key:${col(o.i)}"><span class="rank">#${k+1}</span><b>${o.c.title}</b><div class="board-track"><div class="board-fill" style="width:${(o.w/maxW*100).toFixed(1)}%"></div></div><strong>${format(o.w)}</strong></div>`).join('');
+  $('ticks').innerHTML = interventions.map(s=>`<i class="tick ${s.direction}" style="left:calc(8px + (100% - 16px) * ${s.at/LENGTH})"><span>${s.direction} surge · ${s.at}s</span></i>`).join('');
+  CONTROLLERS.forEach((c,i) => $('card-'+c.id).classList.toggle('leader', frame === LENGTH && result[i].wait === best));
+  if (frame === LENGTH) {
+    const leaders = CONTROLLERS.filter((_,i)=>result[i].wait===best).map(c=>c.title);
+    $('insight').textContent = leaders.join(' and ')+' '+(leaders.length>1?'tied for the lowest wait':'had the lowest wait')+' at '+format(best)+' vehicle-seconds. Each controller saw '+result[0].arrived+' arrivals.';
+  } else {
+    $('insight').textContent = frame ? 'Lower is better. Each point includes waiting by vehicles still in the queue.' : 'Start a run to compare the total time vehicles spend in queues.';
+  }
+  drawChart(frame);
+  drawLog();
+}
+
+function pause() { clearInterval(timer); timer = null; }
+function play() {
+  timer = setInterval(() => {
+    frame++;
+    if (frame >= LENGTH) pause();
+    render();
+  }, 1000 / Number($('speed').value));
+}
+function drawLog() {
+  const decisions = history[0].slice(1, frame + 1)
+    .map(row => row.decision)
+    .filter((decision, index) => decision && decision.second === index + 1
+      && (!$('switches').checked || decision.action === 1))
+    .slice(-8).reverse();
+  $('log').innerHTML = decisions.length ? `<table><thead><tr><th scope="col">Time</th><th scope="col">Action</th><th scope="col">NS / EW queued</th><th scope="col">Q(hold)</th><th scope="col">Q(switch)</th></tr></thead><tbody>
+    ${decisions.map(d => `<tr><td><button type="button" data-second="${d.second}">${d.second} s</button></td><td>${d.action ? 'Switch to ' + (d.phase ? 'NS' : 'EW') : 'Hold ' + (d.phase ? 'EW' : 'NS')}</td><td>${d.ns} / ${d.ew}</td><td>${d.hold.toFixed(1)}</td><td>${d.switch.toFixed(1)}</td></tr>`).join('')}</tbody></table>`
+    : '<p>Run the simulation to log learned decisions. Mandatory safety transitions are enforced separately.</p>';
+}
+
+function seek(second) {
+  if (busy || !history) return;
+  pause();
+  frame = Math.min(LENGTH, Math.max(0, second));
+  render();
+}
+
+function setBusy(value) {
+  busy = value;
+  for (const id of ['run','reset','benchmark','scenario','seed','progress','surgeNS','surgeEW','finish','back','step','csv']) {
+    $(id).disabled = value || (!history && !['reset','scenario','seed'].includes(id));
+  }
+  if (!value && history) render();
+}
+
+async function request(endpoint, schedule, extra = {}) {
+  const response = await fetch('/api/' + endpoint, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({scenario:$('scenario').value, seed:seedValue(), interventions:schedule,...extra})
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error);
+  return payload;
+}
+
+function message(content = '') {
+  $('message').hidden = !content;
+  $('message').textContent = content;
+}
+
+async function loadRun(schedule, position, resume = false) {
+  if (busy) return;
+  pause();
+  message();
+  setBusy(true);
+  try {
+    history = await request('run', schedule);
+    frame = position;
+    interventions = schedule;
+    $('evidence').hidden = true;
+    if (resume && frame < LENGTH) play();
+  } catch (error) {
+    history = null;
+    message('Could not load simulation: ' + error.message);
+  } finally {
+    setBusy(false);
+  }
+}
+
+function reset() { return loadRun([], 0); }
+function inject(direction) {
+  if (busy || !history || frame >= LENGTH || interventions.length >= 8) return;
+  return loadRun([...interventions, {at:frame, direction}], frame, timer !== null);
+}
+
+$('run').onclick = () => {
+  if (busy || !history) return;
+  if (timer !== null) pause();
+  else { if (frame === LENGTH) frame = 0; play(); }
+  render();
+};
+$('finish').onclick = () => seek(LENGTH);
+$('back').onclick = () => seek(frame - 1);
+$('step').onclick = () => seek(frame + 1);
+$('progress').oninput = () => seek(Number($('progress').value));
+$('reset').onclick = reset;
+$('scenario').onchange = reset;
+$('seed').onchange = () => {$('seed').value=seedValue();reset();};
+$('speed').onchange = () => {if(timer !== null){pause();play();}};
+$('surgeNS').onclick = () => inject('NS');
+$('surgeEW').onclick = () => inject('EW');
+$('switches').onchange = () => { if (history) drawLog(); };
+$('log').onclick = event => {
+  const button = event.target.closest('button[data-second]');
+  if (!button) return;
+  seek(Number(button.dataset.second));
+  const card = $('card-ai'); card.classList.remove('flash'); void card.offsetWidth; card.classList.add('flash');
+  card.scrollIntoView({behavior:'smooth', block:'center'});
+};
+function applyTheme() {
+  document.body.classList.toggle('day', isDay);
+  $('themeBtn').textContent = isDay ? '☾ Night' : '☀ Day';
+  try { localStorage.setItem('jiq-theme', isDay ? 'day' : 'night'); } catch (e) {}
+  if (history) render();
+}
+$('themeBtn').onclick = () => { isDay = !isDay; applyTheme(); };
+function togglePresent() {
+  const on = document.body.classList.toggle('present');
+  $('presentBtn').textContent = on ? '✕ Exit' : '⛶ Present';
+  if (history) setTimeout(() => drawChart(frame), 50);
+}
+$('presentBtn').onclick = togglePresent;
+document.addEventListener('keydown', e => {
+  if (e.target.matches('input,select,textarea')) return;
+  if (e.code === 'Space') { e.preventDefault(); $('run').click(); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); $('step').click(); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); $('back').click(); }
+  else if (e.key === 'p' || e.key === 'P') togglePresent();
+});
+document.addEventListener('keyup', e => { if (e.code === 'Space' && e.target.matches('button')) e.preventDefault(); });
+$('benchmark').onclick = async () => {
+  if (busy || !history) return;
+  pause();
+  setBusy(true);
+  message('Running benchmark in Python…');
+  const runs = Number($('samples').value);
+  const seed = seedValue();
+  try {
+    const sums = await request('benchmark', interventions, {runs});
+    const label = $('scenario').selectedOptions[0].textContent;
+    const injections = interventions.length ? ' · Surges at ' + interventions.map(i => i.direction+' '+i.at+'s').join(', ') : '';
+    $('evidence').innerHTML = `<p>${label} · ${runs} evaluation runs, seeds ${seed+1}–${seed+runs}${injections}. Wins include ties.</p>
+      <table><thead><tr><th scope="col">Controller</th><th scope="col">Mean wait (veh-s)</th><th scope="col">Mean peak lane queue</th><th scope="col">Mean vehicles served</th><th scope="col">Lowest-wait runs</th></tr></thead>
+      <tbody>${sums.map((s,i)=>`<tr><th scope="row">${CONTROLLERS[i].title}</th><td>${s.wait.toFixed(1)}</td><td>${s.peak.toFixed(1)}</td><td>${s.served.toFixed(1)}</td><td>${s.wins} / ${runs}</td></tr>`).join('')}</tbody></table>`;
+    $('evidence').hidden = false;
+    message();
+  } catch (error) {
+    message('Benchmark failed: ' + error.message);
+  } finally {
+    setBusy(false);
+  }
+};
+$('csv').onclick = () => {
+  if (!history) return;
+  const rows = ['controller,second,signal,ns_queue,ew_queue,arrived,served,wait_vehicle_seconds,peak_lane_queue'];
+  history.forEach((frames,index) => frames.forEach((state, second) => {
+    const [ns,ew] = totals(state);
+    rows.push([CONTROLLERS[index].id,second,state.allRed?'all-red':state.phase?'EW':'NS',
+      ns,ew,state.arrived,state.served,state.wait,state.peak].join(','));
+  }));
+  const url = URL.createObjectURL(new Blob([rows.join('\n')],{type:'text/csv;charset=utf-8'}));
+  const link = document.createElement('a');
+  link.href=url;
+  link.download='junctioniq-'+$('scenario').value+'-'+seedValue()+'.csv';
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url),1000);
+};
+window.addEventListener('resize',()=>{if(history) drawChart(frame);});
+makeCards();
+applyTheme();
+reset();
+requestAnimationFrame(loop);
+</script></body></html>
