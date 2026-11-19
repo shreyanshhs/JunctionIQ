@@ -196,7 +196,7 @@ body.day .tick span{color:#fff}
 </details></section>
 </div>
 <section class="analysis glass"><div class="analysisHead"><div><h2>AI decision log</h2><p>Select a timestamp to replay that decision.</p></div><label class="mono"><input id="switches" type="checkbox" checked> Switches only</label></div><div id="log" class="scroll"></div></section>
-<footer>Shortcuts: Space play/pause · ← → step one second · P presentation mode<br>JunctionIQ · Simulated four-way intersection · North–south (NS) and east–west (EW) · Vehicles drive on the left</footer>
+<footer>Shortcuts: Space play/pause · ← → step one second · P presentation mode<br>JunctionIQ · Simulated four-way intersection · North–south (NS) and east–west (EW) · Vehicles drive on the left · Departing and arriving cars use the ring road</footer>
 </main>
 <script>
 'use strict';
@@ -265,79 +265,106 @@ function chip(ctx, x, y, text, bg, fg) {
   ctx.fillText(text, x, y+.5); ctx.textAlign='start'; ctx.textBaseline='alphabetic';
 }
 
+/* ---------- City layout: arms meet a ring road with corner ramps ---------- */
+const RING = {inner:3.95, outer:4.85, mid:4.4, c:3.55};
+const CORNERS = { // centre of each rounded corner, outward unit vector, arc start angle (deg)
+  NE:{c:[3.55,-3.55], u:[.7071,-.7071], a0:-90},
+  SE:{c:[3.55,3.55],  u:[.7071,.7071],  a0:0},
+  SW:{c:[-3.55,3.55], u:[-.7071,.7071], a0:90},
+  NW:{c:[-3.55,-3.55],u:[-.7071,-.7071],a0:180}
+};
 const BUILDINGS = [
-  [-5.1,-5.1,-3.5,-3.4,2.5,'#2c4266'],[-3.1,-5.1,-1.8,-3.9,1.6,'#3a3c6b'],[-5.1,-3.0,-3.9,-1.8,1.2,'#2b4b5e'],
-  [2.6,-5.1,3.9,-3.9,1.9,'#34466e'],[4.2,-5.1,5.1,-2.9,1.3,'#2d4f63'],
-  [-5.1,2.6,-3.9,3.9,1.5,'#3b4170'],[-5.1,4.2,-2.9,5.1,.9,'#2c4767'],
-  [3.0,3.0,4.0,4.0,.6,'#3a4a6e'],[4.3,2.0,5.1,3.4,.8,'#2e4c60']
+  [-3.75,-3.75,-2.6,-2.55,2.4,'#2c4266'],[-2.3,-3.75,-1.55,-3.0,1.3,'#3a3c6b'],
+  [2.45,-3.75,3.75,-2.65,1.8,'#34466e'],[1.6,-3.75,2.2,-3.1,.9,'#2d4f63'],
+  [-3.75,2.45,-2.65,3.75,1.4,'#3b4170'],[-3.75,1.6,-3.1,2.2,.8,'#2c4767'],
+  [2.7,2.7,3.6,3.6,.6,'#3a4a6e']
 ];
-const TREES = [[-2.2,-2.3],[-3.0,-2.0],[-2.0,-3.2],[2.1,-2.1],[2.9,-2.4],[2.0,-3.2],[3.6,-2.0],[2.2,-4.4],
-  [-2.1,2.1],[-2.4,2.9],[-3.2,2.0],[-2.0,3.8],[2.1,2.1],[2.8,2.0],[2.0,2.9],[2.3,4.4],[3.4,4.8],[4.6,4.6]];
+const TREES = [[-1.9,-1.9],[-3.1,-1.9],[-1.9,-2.5],[1.9,-1.9],[2.8,-1.9],[1.8,-2.75],[3.4,-2.2],
+  [-1.9,1.9],[-1.9,2.9],[-2.9,1.8],[-2.2,3.4],[1.9,1.9],[2.8,1.8],[1.8,2.8],
+  [5.2,-2.2],[5.2,2.2],[-5.2,-2.2],[-5.2,2.2],[2.2,-5.2],[-2.2,-5.2],[2.2,5.2],[-2.2,5.2]];
 
 function building(ctx,[x0,y0,x1,y1,h,c],k) {
   const t = T();
   poly(ctx,[P(x0+.15,y0+.15,0),P(x1+.35,y0+.15,0),P(x1+.35,y1+.35,0),P(x0+.15,y1+.35,0)],t.shadow);
   box(ctx,x0,y0,x1,y1,.05,h,shade(c,t.b[0]),shade(c,t.b[1]),shade(c,t.b[2]));
-  // windows on both visible faces
   for (let z=.32, f=0; z<h-.18; z+=.38, f++) {
-    for (let u=x0+.18, j=0; u<x1-.22; u+=.34, j++) {
-      const lit = ((k*7+f*13+j*5)%9) < 3;
-      poly(ctx,[P(u,y1,z),P(u+.18,y1,z),P(u+.18,y1,z+.2),P(u,y1,z+.2)], lit ? t.lit : t.unlit);
-    }
-    for (let v=y0+.18, j=0; v<y1-.22; v+=.34, j++) {
-      const lit = ((k*11+f*7+j*3)%8) < 2;
-      poly(ctx,[P(x1,v,z),P(x1,v+.18,z),P(x1,v+.18,z+.2),P(x1,v,z+.2)], lit ? t.lit : t.unlit);
-    }
+    for (let u=x0+.18, j=0; u<x1-.22; u+=.34, j++)
+      poly(ctx,[P(u,y1,z),P(u+.18,y1,z),P(u+.18,y1,z+.2),P(u,y1,z+.2)], ((k*7+f*13+j*5)%9)<3 ? t.lit : t.unlit);
+    for (let v=y0+.18, j=0; v<y1-.22; v+=.34, j++)
+      poly(ctx,[P(x1,v,z),P(x1,v+.18,z),P(x1,v+.18,z+.2),P(x1,v,z+.2)], ((k*11+f*7+j*3)%8)<2 ? t.lit : t.unlit);
   }
-  // rooftop unit
   const mx=(x0+x1)/2, my=(y0+y1)/2;
   box(ctx,mx-.22,my-.18,mx+.12,my+.16,h,h+.16,isDay?'#9aa8bd':'#5d6f8c');
 }
 function tree(ctx,x,y,k) {
   const [sx,sy]=P(x,y,0);
-  ctx.fillStyle=T().shadow; ctx.beginPath(); ctx.ellipse(sx+4,sy+1,9,4.5,0,0,Math.PI*2); ctx.fill();
-  box(ctx,x-.04,y-.04,x+.04,y+.04,0,.32,'#6b4f3a');
-  const [cx,cy]=P(x,y,.62), r = 8.5 + (k%3);
+  ctx.fillStyle=T().shadow; ctx.beginPath(); ctx.ellipse(sx+4,sy+1,8,4,0,0,Math.PI*2); ctx.fill();
+  box(ctx,x-.04,y-.04,x+.04,y+.04,0,.3,'#6b4f3a');
+  const [cx,cy]=P(x,y,.58), r = 7.5 + (k%3);
   const g=ctx.createRadialGradient(cx-3,cy-4,1,cx,cy,r);
   g.addColorStop(0,T().leaf[0]); g.addColorStop(1,T().leaf[1]);
   ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
 }
+function roundedSquare(h, r, n = 10) {
+  const c = h - r, pts = [];
+  for (const k of ['NE','SE','SW','NW']) {
+    const [cx,cy] = CORNERS[k].c.map(v => Math.sign(v)*c), a0 = CORNERS[k].a0;
+    for (let i=0;i<=n;i++) { const a=(a0+90*i/n)*Math.PI/180; pts.push([cx+r*Math.cos(a), cy+r*Math.sin(a)]); }
+  }
+  return pts;
+}
+function trace(ctx, pts, z) { pts.forEach(([x,y],i) => { const [sx,sy]=P(x,y,z); i?ctx.lineTo(sx,sy):ctx.moveTo(sx,sy); }); ctx.closePath(); }
+function ramp(ctx, k, from, to, z, fill) {
+  const {c,u} = CORNERS[k], p = [-u[1]*.42, u[0]*.42];
+  const a = [c[0]+u[0]*from, c[1]+u[1]*from], b = [c[0]+u[0]*to, c[1]+u[1]*to];
+  poly(ctx,[P(a[0]+p[0],a[1]+p[1],z),P(b[0]+p[0],b[1]+p[1],z),P(b[0]-p[0],b[1]-p[1],z),P(a[0]-p[0],a[1]-p[1],z)],fill);
+}
 
 function drawStatic(ctx) {
   const E = ISO.E, t = T();
-  // floating island
-  box(ctx,-E,-E,E,E,-.55,0,t.islandTop,t.islandL,t.islandR);
-  // lots (grass)
-  for (const [sx,sy] of [[-1,-1],[1,-1],[-1,1],[1,1]]) {
-    const a=1.35, b=E-.14;
-    const xs=[sx*a,sx*b].sort((m,n)=>m-n), ys=[sy*a,sy*b].sort((m,n)=>m-n);
-    box(ctx,xs[0],ys[0],xs[1],ys[1],0,.06,t.grass,t.grassL,t.grassR);
+  // NW flyover leaving the island (behind it, so drawn first)
+  for (const d of [3.7,5.2,6.7]) {
+    const {c,u}=CORNERS.NW, x=c[0]+u[0]*d, y=c[1]+u[1]*d;
+    box(ctx,x-.1,y-.1,x+.1,y+.1,-1.6,-.18,isDay?'#9aa6b8':'#2a3650');
   }
-  // roads
-  flat(ctx,-1,-E,1,E,.005,t.road); flat(ctx,-E,-1,E,1,.005,t.road);
-  flat(ctx,-1,-1,1,1,.006,t.junction);
+  ramp(ctx,'NW',2.6,9,-.2,isDay?'#7d889a':'#0e1420');
+  ramp(ctx,'NW',2.6,9,0,t.road);
+  // island
+  box(ctx,-E,-E,E,E,-.55,0,t.grass,t.islandL,t.islandR);
+  // ramps at the four corners
+  for (const k of ['NE','SE','SW','NW']) ramp(ctx,k,.3,k==='NW'?9:7,.004,t.road);
+  // ring road
+  ctx.beginPath(); trace(ctx, roundedSquare(RING.outer,1.3), .005); trace(ctx, roundedSquare(RING.inner,.4), .005);
+  ctx.fillStyle = t.road; ctx.fill('evenodd');
+  // arms
+  flat(ctx,-1,-RING.outer,1,RING.outer,.006,t.road); flat(ctx,-RING.outer,-1,RING.outer,1,.006,t.road);
+  flat(ctx,-1,-1,1,1,.007,t.junction);
+  // curbs
   ctx.strokeStyle=t.curb; ctx.lineWidth=1;
-  for (const [a,b] of [[[1,-E],[1,-1]],[[1,-1],[E,-1]],[[1,1],[E,1]],[[1,1],[1,E]],[[-1,1],[-1,E]],[[-1,1],[-E,1]],[[-1,-1],[-E,-1]],[[-1,-1],[-1,-E]]]) {
-    const p=P(a[0],a[1],.01), q=P(b[0],b[1],.01); ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.lineTo(q[0],q[1]); ctx.stroke();
+  ctx.beginPath(); trace(ctx, roundedSquare(RING.outer,1.3), .01); ctx.stroke();
+  // ring centre line + ramp centre lines
+  ctx.save(); ctx.setLineDash([5,6]); ctx.lineWidth=1.4; ctx.strokeStyle=t.dash;
+  ctx.beginPath(); trace(ctx, roundedSquare(RING.mid,.85), .012); ctx.stroke();
+  for (const k of ['NE','SE','SW','NW']) {
+    const {c,u}=CORNERS[k], a=P(c[0]+u[0]*1.45,c[1]+u[1]*1.45,.012), b=P(c[0]+u[0]*(k==='NW'?9:7),c[1]+u[1]*(k==='NW'?9:7),.012);
+    ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.stroke();
   }
-  // centre dashes
-  for (let t=1.75; t<E-.1; t+=.55) for (const s of [-1,1]) {
-    flat(ctx,-.025,s*t,.025,s*(t+.28),.01,t.dash);
-    flat(ctx,s*t,-.025,s*(t+.28),.025,.01,t.dash);
+  ctx.restore();
+  // arm centre dashes
+  for (let s=1.75; s<RING.inner-.2; s+=.55) for (const g of [-1,1]) {
+    flat(ctx,-.025,g*s,.025,g*(s+.28),.012,t.dash);
+    flat(ctx,g*s,-.025,g*(s+.28),.025,.012,t.dash);
   }
   // zebra crossings
   for (let k=-.92; k<.9; k+=.24) for (const s of [-1,1]) {
-    flat(ctx,k,s>0?1.1:-1.38,k+.13,s>0?1.38:-1.1,.012,t.zebra);
-    flat(ctx,s>0?1.1:-1.38,k,s>0?1.38:-1.1,k+.13,.012,t.zebra);
+    flat(ctx,k,s>0?1.1:-1.38,k+.13,s>0?1.38:-1.1,.013,t.zebra);
+    flat(ctx,s>0?1.1:-1.38,k,s>0?1.38:-1.1,k+.13,.013,t.zebra);
   }
-  // objects sorted back to front
-  const objs = [];
-  BUILDINGS.forEach((b,k)=>objs.push({d:(b[0]+b[2])/2+(b[1]+b[3])/2, f:()=>building(ctx,b,k)}));
-  TREES.forEach(([x,y],k)=>objs.push({d:x+y, f:()=>tree(ctx,x,y,k)}));
-  objs.sort((a,b)=>a.d-b.d).forEach(o=>o.f());
-  // compass
-  const lab = [['N',0,-E-.45],['S',0,E+.45],['E',E+.45,0],['W',-E-.45,0]];
-  for (const [t,x,y] of lab) { const [sx,sy]=P(x,y,0); chip(ctx,sx,sy,t,T().chipBg,T().chipFg); }
+  // raised city blocks inside the loop
+  for (const [sx,sy] of [[-1,-1],[1,-1],[-1,1],[1,1]]) {
+    const xs=[sx*1.35,sx*3.8].sort((m,n)=>m-n), ys=[sy*1.35,sy*3.8].sort((m,n)=>m-n);
+    box(ctx,xs[0],ys[0],xs[1],ys[1],0,.07,shade(t.grass,1.12),t.grassL,t.grassR);
+  }
 }
 const staticCache = {};
 function staticLayer(dpr) {
@@ -349,24 +376,82 @@ function staticLayer(dpr) {
 }
 
 const CAR_COLORS = ['#e9eef6','#9fb2cb','#d76a6a','#5c6f8a','#f2d28a','#7fb7d9'];
-function car(ctx,cx,cy,axis,color) {
-  const L=.31, W=.19, [hx,hy] = axis==='x'?[L,W]:[W,L];
-  poly(ctx,[P(cx-hx+.07,cy-hy+.07,0),P(cx+hx+.07,cy-hy+.07,0),P(cx+hx+.07,cy+hy+.07,0),P(cx-hx+.07,cy+hy+.07,0)],'rgba(0,0,0,.4)');
+function car(ctx,cx,cy,axis,color,alpha=1) {
+  if (alpha <= 0) return;
+  ctx.save(); ctx.globalAlpha = alpha;
+  const L=.29, W=.18, [hx,hy] = axis==='x'?[L,W]:[W,L];
+  poly(ctx,[P(cx-hx+.07,cy-hy+.07,0),P(cx+hx+.07,cy-hy+.07,0),P(cx+hx+.07,cy+hy+.07,0),P(cx-hx+.07,cy+hy+.07,0)],'rgba(0,0,0,.35)');
   box(ctx,cx-hx,cy-hy,cx+hx,cy+hy,.03,.16,color);
   const [kx,ky] = axis==='x'?[L*.55,W*.82]:[W*.82,L*.55];
   box(ctx,cx-kx,cy-ky,cx+kx,cy+ky,.16,.28,shade(color,1.12),'#1c2a40','#2a3d5a');
+  ctx.restore();
 }
-const LANES = [ // from N, E, S, W (left-hand traffic)
-  {axis:'y', pos:i=>[.5,-1.7-i*.68], dir:[0,1]},
-  {axis:'x', pos:i=>[1.7+i*.68,.5], dir:[-1,0]},
-  {axis:'y', pos:i=>[-.5,1.7+i*.68], dir:[0,-1]},
-  {axis:'x', pos:i=>[-1.7-i*.68,-.5], dir:[1,0]}
+const CAP = 4, GAP = .62;
+const LANES = [ // queues from N, E, S, W (left-hand traffic)
+  {axis:'y', pos:i=>[.5,-1.65-i*GAP]},
+  {axis:'x', pos:i=>[1.65+i*GAP,.5]},
+  {axis:'y', pos:i=>[-.5,1.65+i*GAP]},
+  {axis:'x', pos:i=>[-1.65-i*GAP,-.5]}
 ];
 const STOPS = [[0,-1.52,1,-1.44],[1.44,0,1.52,1],[-1,1.44,0,1.52],[-1.52,-1,-1.44,0]];
 const POLES = [[1.25,-1.25,0],[1.25,1.25,1],[-1.25,1.25,0],[-1.25,-1.25,1]];
-const CAP = 6;
 
-function drawScene(canvas, cur, moving, color, now) {
+/* ---------- Paths around the loop ---------- */
+function arc(k, from, to, n = 6) {
+  const {c,a0} = CORNERS[k], pts = [];
+  for (let i=0;i<=n;i++) { const a=(a0+from+(to-from)*i/n)*Math.PI/180; pts.push([c[0]+.85*Math.cos(a), c[1]+.85*Math.sin(a)]); }
+  return pts;
+}
+const out = (k, d) => [CORNERS[k].c[0]+CORNERS[k].u[0]*d, CORNERS[k].c[1]+CORNERS[k].u[1]*d];
+const FAR = k => k === 'NW' ? 8.5 : 6.5;
+const M = RING.mid;
+// departing: through the junction, onto the loop (clockwise), off at the next corner ramp
+const EXIT = [
+  [[.5,-1.65],[.5,M],[-3.55,M],...arc('SW',0,45),out('SW',FAR('SW'))],
+  [[1.65,.5],[-M,.5],[-M,-3.55],...arc('NW',0,45),out('NW',FAR('NW'))],
+  [[-.5,1.65],[-.5,-M],[3.55,-M],...arc('NE',0,45),out('NE',FAR('NE'))],
+  [[-1.65,-.5],[M,-.5],[M,3.55],...arc('SE',0,45),out('SE',FAR('SE'))]
+];
+// arriving: in from a corner ramp, along the loop, into the arm to the back of the queue
+const ENTRY = [
+  tail => [out('NW',FAR('NW')),...arc('NW',45,90),[-3.55,-M],[.5,-M],[.5,-tail]],
+  tail => [out('NE',FAR('NE')),...arc('NE',45,90),[M,-3.55],[M,.5],[tail,.5]],
+  tail => [out('SE',FAR('SE')),...arc('SE',45,90),[3.55,M],[-.5,M],[-.5,tail]],
+  tail => [out('SW',FAR('SW')),...arc('SW',45,90),[-M,3.55],[-M,-.5],[-tail,-.5]]
+];
+function makePath(pts) {
+  const cum=[0]; for (let i=1;i<pts.length;i++) cum.push(cum[i-1]+Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]));
+  return {pts, cum, len:cum[cum.length-1]};
+}
+const SPEED = 7.5; // world units per real second
+const sprites = {}, lastSpawn = {};
+let spawnCount = 0;
+function spawn(scene, kind, lane, queueLen, color, now) {
+  const key = scene+kind+lane;
+  if (now - (lastSpawn[key]||0) < 190) return;
+  const list = sprites[scene] || (sprites[scene] = []);
+  if (list.length >= 28) return;
+  lastSpawn[key] = now;
+  const tail = 1.65 + Math.min(Math.max(queueLen,1), CAP) * GAP;
+  const pts = kind === 'out' ? EXIT[lane] : ENTRY[lane](Math.min(tail, RING.inner - .3));
+  const n = spawnCount++;
+  list.push({path:makePath(pts), t0:now, kind, color: n%3===0 ? color : CAR_COLORS[n%CAR_COLORS.length]});
+}
+function clearSprites() { for (const k in sprites) sprites[k] = []; }
+function spritePos(sp, now) {
+  const s = (now - sp.t0)/1000*SPEED, {pts,cum,len} = sp.path;
+  if (s >= len) return null;
+  let i = 1; while (i < cum.length-1 && cum[i] < s) i++;
+  const f = (s - cum[i-1]) / (cum[i]-cum[i-1] || 1);
+  const x = pts[i-1][0] + (pts[i][0]-pts[i-1][0])*f, y = pts[i-1][1] + (pts[i][1]-pts[i-1][1])*f;
+  const axis = Math.abs(pts[i][0]-pts[i-1][0]) >= Math.abs(pts[i][1]-pts[i-1][1]) ? 'x' : 'y';
+  let alpha = 1;
+  if (sp.kind === 'in') alpha = Math.min(1, (len - s) / .6, s / .8);
+  else alpha = Math.min(1, (len - s) / 1.2);
+  return {x, y, axis, alpha};
+}
+
+function drawScene(canvas, cur, scene, color, now) {
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   if (canvas.width !== ISO.W*dpr) { canvas.width = ISO.W*dpr; canvas.height = ISO.H*dpr; }
   const ctx = canvas.getContext('2d');
@@ -374,7 +459,6 @@ function drawScene(canvas, cur, moving, color, now) {
   ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.drawImage(staticLayer(dpr),0,0,ISO.W,ISO.H);
   const green = lane => !cur.allRed && cur.phase === lane % 2;
-  // stop bars glow
   STOPS.forEach((s,lane) => {
     ctx.save(); const g = green(lane);
     ctx.shadowColor = g ? '#5ff5c8' : '#ff5d5d'; ctx.shadowBlur = 10;
@@ -388,6 +472,8 @@ function drawScene(canvas, cur, moving, color, now) {
     ctx.restore();
   }
   const objs = [];
+  BUILDINGS.forEach((b,k)=>objs.push({d:(b[0]+b[2])/2+(b[1]+b[3])/2, f:()=>building(ctx,b,k)}));
+  TREES.forEach(([x,y],k)=>objs.push({d:x+y, f:()=>tree(ctx,x,y,k)}));
   cur.queues.forEach((q,lane) => {
     const L = LANES[lane];
     for (let i=0;i<Math.min(q,CAP);i++) {
@@ -396,42 +482,56 @@ function drawScene(canvas, cur, moving, color, now) {
       objs.push({d:x+y, f:()=>car(ctx,x,y,L.axis,c)});
     }
     if (q > CAP) {
-      const [x,y] = L.pos(CAP-.2);
-      objs.push({d:x+y+.01, f:()=>{const [sx,sy]=P(x,y,.55); chip(ctx,sx,sy,'+'+(q-CAP),'rgba(255,107,107,.92)','#fff');}});
+      const [x,y] = L.pos(CAP-.6);
+      objs.push({d:x+y+.01, f:()=>{const [sx,sy]=P(x,y,.62); chip(ctx,sx,sy,'+'+(q-CAP)+' more','rgba(255,107,107,.94)','#fff');}});
     }
   });
-  moving.forEach(({lane,p}) => {
-    const L = LANES[lane], [x0,y0] = L.pos(0), dist = 4.6*p*(2-p);
-    const x = x0 + L.dir[0]*dist, y = y0 + L.dir[1]*dist;
-    objs.push({d:x+y, f:()=>car(ctx,x,y,L.axis,color)});
-  });
-  POLES.forEach(([x,y,ph],idx) => objs.push({d:x+y, f:()=>{
+  const list = sprites[scene] || [];
+  for (let i = list.length - 1; i >= 0; i--) {
+    const p = spritePos(list[i], now);
+    if (!p) { list.splice(i,1); continue; }
+    const c = list[i].color;
+    objs.push({d:p.x+p.y, f:()=>car(ctx,p.x,p.y,p.axis,c,p.alpha)});
+  }
+  POLES.forEach(([x,y,ph]) => objs.push({d:x+y, f:()=>{
     box(ctx,x-.035,y-.035,x+.035,y+.035,0,1.05,'#4a5a74');
     box(ctx,x-.09,y-.09,x+.09,y+.09,.9,1.32,'#1a2233');
     const on = !cur.allRed && cur.phase===ph;
     const [rx,ry]=P(x+.09,y+.09,1.2), [gx,gy]=P(x+.09,y+.09,1.0);
-    ctx.save();
-    ctx.shadowBlur=14; ctx.shadowColor= on ? '#5ff5c8' : '#ff5d5d';
+    ctx.save(); ctx.shadowBlur=14; ctx.shadowColor= on ? '#5ff5c8' : '#ff5d5d';
     ctx.fillStyle = on ? '#3a1f24' : '#ff5d5d'; ctx.beginPath(); ctx.arc(rx-1,ry,3.3,0,Math.PI*2); ctx.fill();
     ctx.fillStyle = on ? '#5ff5c8' : '#1d3a33'; ctx.beginPath(); ctx.arc(gx-1,gy,3.3,0,Math.PI*2); ctx.fill();
     ctx.restore();
   }}));
   objs.sort((a,b)=>a.d-b.d).forEach(o=>o.f());
-  // phase chip above junction
+  // compass + ramp labels
+  for (const [t,x,y] of [['N',0,-5.2],['S',0,5.2],['E',5.2,0],['W',-5.2,0]]) { const [sx,sy]=P(x,y,0); chip(ctx,sx,sy,t,T().chipBg,T().chipFg); }
   const [cx,cy] = P(0,0,1.75);
   if (cur.allRed) chip(ctx,cx,cy,'ALL-RED','rgba(255,184,107,.95)','#2a1600');
   else chip(ctx,cx,cy,(cur.phase===0?'NS':'EW')+' GREEN','rgba(95,245,200,.92)','#04211b');
 }
 
+/* Spawn departing / arriving cars from the real simulation step frame-1 -> frame */
+function spawnStep(now) {
+  if (!history || frame < 1) return;
+  history.forEach((frames, i) => {
+    const prev = frames[frame-1], cur = frames[frame], c = CONTROLLERS[i];
+    const lanes = cur.allRed ? [] : [cur.phase, cur.phase+2];
+    let extra = (cur.served - prev.served) - lanes.filter(l => prev.queues[l] > 0).length;
+    for (let l = 0; l < 4; l++) {
+      let served = 0;
+      if (lanes.includes(l)) { if (prev.queues[l] > 0) served = 1; else if (extra > 0) { served = 1; extra--; } }
+      const arrived = cur.queues[l] - prev.queues[l] + served;
+      if (served) spawn(c.id, 'out', l, 0, c.color, now);
+      if (arrived > 0) spawn(c.id, 'in', l, cur.queues[l], c.color, now);
+    }
+  });
+}
+
 function drawJunction(index, now) {
   const c = CONTROLLERS[index], frames = history && history[index];
-  const cur = frames ? frames[frame] : EMPTY, prev = frames && frame > 0 ? frames[frame-1] : null;
-  const moving = [];
-  if (prev && timer !== null && !cur.allRed && cur.served > prev.served) {
-    const p = Math.min(1, (now - lastTick) / (1000 / Number($('speed').value)));
-    for (const lane of [cur.phase, cur.phase+2]) if (prev.queues[lane] > 0) moving.push({lane, p});
-  }
-  drawScene($('map-'+c.id), cur, moving, c.color, now);
+  const cur = frames ? frames[frame] : EMPTY;
+  drawScene($('map-'+c.id), cur, c.id, c.color, now);
   if (index === 0 && timer === null && frames && cur.decision && cur.decision.second === frame) bubble($('map-'+c.id).getContext('2d'), cur.decision);
 }
 function bubble(ctx, d) {
@@ -458,13 +558,19 @@ function bubble(ctx, d) {
   ctx.restore();
 }
 
+let heroNext = 0;
 function drawHero(now) {
   const cycle = 4200, t = now % cycle, n = Math.floor(now / cycle);
   const phase = n % 2, allRed = t > cycle - 700;
-  const grow = Math.min(5, Math.floor(t / 650));
-  const queues = [0,1,2,3].map(l => (l%2===phase) ? Math.max(0, 3 - Math.floor(t/900)) : 1 + grow + (l>1?1:0));
-  const moving = allRed ? [] : [phase, phase+2].map(lane => ({lane, p:(t % 900)/900}));
-  drawScene($('heroIso'), {queues, phase, allRed}, moving, '#5ff5c8', now);
+  const grow = Math.min(3, Math.floor(t / 900));
+  const queues = [0,1,2,3].map(l => (l%2===phase) ? Math.max(0, 3 - Math.floor(t/900)) : 1 + grow + (l>1?2:0));
+  if (now > heroNext) {
+    heroNext = now + 260;
+    const l = Math.floor(Math.random()*4);
+    if (!allRed && l%2===phase) spawn('hero','out',l,0,'#5ff5c8',now);
+    else spawn('hero','in',l,queues[l],'#5ff5c8',now);
+  }
+  drawScene($('heroIso'), {queues, phase, allRed}, 'hero', '#5ff5c8', now);
 }
 
 let lastDraw = 0;
@@ -534,7 +640,7 @@ const format = n => n.toLocaleString('en-IN');
 const seedValue = () => Math.max(0, Math.min(2147483647, Math.trunc(Number($('seed').value) || 0)));
 
 function render() {
-  if (frame !== shownFrame) { lastTick = performance.now(); shownFrame = frame; }
+  if (frame !== shownFrame) { const now = performance.now(); if (frame === shownFrame + 1) spawnStep(now); else clearSprites(); lastTick = now; shownFrame = frame; }
   history.forEach((frames,i) => {
     const id = CONTROLLERS[i].id, current = frames[frame];
     const [ns, ew] = totals(current);
